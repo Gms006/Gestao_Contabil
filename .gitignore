@@ -1,0 +1,46 @@
+# Dependências
+node_modules/
+package-lock.json
+yarn.lock
+
+# Banco de Dados
+*.db
+*.db-journal
+data/gestao-contabil.db
+data/backups/
+
+# Logs
+logs/
+*.log
+data/logs/
+
+# Ambiente
+.env
+.env.local
+.env.production
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema Operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporários
+tmp/
+temp/
+*.tmp
+
+# Prisma
+prisma/migrations/
+!prisma/migrations/.gitkeep

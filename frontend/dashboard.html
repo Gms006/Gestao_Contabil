@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Gestão Contábil</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">
+                <i class="bi bi-calculator"></i> Gestão Contábil
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">
+                            <i class="bi bi-house"></i> Início
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="dashboard.html">
+                            <i class="bi bi-graph-up"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="empresas.html">
+                            <i class="bi bi-building"></i> Empresas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="competencias.html">
+                            <i class="bi bi-calendar-check"></i> Competências
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="obrigacoes.html">
+                            <i class="bi bi-file-earmark-text"></i> Obrigações
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="problemas.html">
+                            <i class="bi bi-exclamation-triangle"></i> Problemas
+                        </a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center text-white">
+                    <i class="bi bi-person-circle me-2"></i>
+                    <span id="usuarioNome">Usuário</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Conteúdo Principal -->
+    <div class="container-fluid mt-4">
+        <h2 class="mb-4"><i class="bi bi-graph-up"></i> Dashboard Analítico</h2>
+
+        <!-- Resumo do Dia -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-calendar-day"></i> Resumo do Dia</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <h3 id="etapasIniciadas">0</h3>
+                                <p class="text-muted">Etapas Iniciadas</p>
+                            </div>
+                            <div class="col-md-3">
+                                <h3 id="etapasConcluidas">0</h3>
+                                <p class="text-muted">Etapas Concluídas</p>
+                            </div>
+                            <div class="col-md-3">
+                                <h3 id="problemasReportados">0</h3>
+                                <p class="text-muted">Problemas Reportados</p>
+                            </div>
+                            <div class="col-md-3">
+                                <h3 id="obrigacoesVencemHoje">0</h3>
+                                <p class="text-muted">Obrigações Vencem Hoje</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráficos -->
+        <div class="row mb-4">
+            <!-- Competências por Status -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Competências por Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="chartCompetenciasStatus"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Obrigações por Esfera -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Obrigações por Esfera</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="chartObrigacoesEsfera"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mais Gráficos -->
+        <div class="row mb-4">
+            <!-- Problemas por Tipo -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">Problemas por Tipo</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="chartProblemasTipo"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tempo Médio por Regime -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Tempo Médio por Regime (min)</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="chartTempoRegime"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Produtividade -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-people"></i> Produtividade por Usuário</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Usuário</th>
+                                        <th>Papel</th>
+                                        <th>Obrigações Preparadas</th>
+                                        <th>Obrigações Entregues</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaProdutividade">
+                                    <tr>
+                                        <td colspan="4" class="text-center">
+                                            <div class="spinner-border" role="status"></div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

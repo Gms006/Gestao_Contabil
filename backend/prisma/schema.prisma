@@ -1,0 +1,220 @@
+// Schema Prisma - Sistema de Gestão Contábil
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo de Empresa
+model Empresa {
+  id              String   @id @default(uuid())
+  cnpj            String   @unique
+  razaoSocial     String
+  nomeFantasia    String?
+  regime          String   // SN (Simples Nacional), LP (Lucro Presumido), LR (Lucro Real)
+  segmento        String   // Comercio, Servicos, Industria, Misto
+  uf              String
+  municipio       String
+  ativo           Boolean  @default(true)
+  observacoes     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  competencias    Competencia[]
+  usuarios        UsuarioEmpresa[]
+}
+
+// Modelo de Usuário/Colaborador
+model Usuario {
+  id              String   @id @default(uuid())
+  nome            String
+  email           String   @unique
+  senha           String   // Hash
+  papel           String   // Preparador, Entregador, Gestor, Admin
+  ativo           Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  empresas        UsuarioEmpresa[]
+  acoes           AcaoLog[]
+  obrigacoesPreparadas  Obrigacao[] @relation("Preparador")
+  obrigacoesEntregues   Obrigacao[] @relation("Entregador")
+}
+
+// Relação Usuário-Empresa (muitos para muitos)
+model UsuarioEmpresa {
+  id          String   @id @default(uuid())
+  usuarioId   String
+  empresaId   String
+  papel       String   // Preparador, Entregador, Gestor
+  createdAt   DateTime @default(now())
+  
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  
+  @@unique([usuarioId, empresaId])
+  @@index([usuarioId])
+  @@index([empresaId])
+}
+
+// Modelo de Competência (mês/ano por empresa)
+model Competencia {
+  id              String   @id @default(uuid())
+  empresaId       String
+  mesAno          String   // Formato: "2025-03"
+  status          String   @default("Nao Iniciado") // Nao Iniciado, Em Andamento, Pausado, Concluido
+  dataInicio      DateTime?
+  dataConclusao   DateTime?
+  tempoTotalMin   Int      @default(0)
+  houveMovimento  Boolean  @default(true)
+  observacoes     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  empresa         Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  etapas          Etapa[]
+  obrigacoes      Obrigacao[]
+  
+  @@unique([empresaId, mesAno])
+  @@index([empresaId])
+  @@index([mesAno])
+  @@index([status])
+}
+
+// Modelo de Etapa do Processo
+model Etapa {
+  id              String   @id @default(uuid())
+  competenciaId   String
+  nome            String   // Ex: "Download NFs - Jettax", "Importação - Domínio"
+  sistema         String?  // Jettax, Dominio, Sittax, Manual, etc
+  tipo            String   // Sistema, Manual, Misto
+  ordem           Int
+  status          String   @default("Nao Iniciado") // Nao Iniciado, Em Andamento, Concluido, Pulado
+  inicioAt        DateTime?
+  fimAt           DateTime?
+  duracaoMin      Int      @default(0)
+  efetividade     Int?     // 1-5 (avaliação do colaborador)
+  observacao      String?  // "Hora desabafo"
+  dadosEspecificos String? // JSON com campos específicos da etapa
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  competencia     Competencia @relation(fields: [competenciaId], references: [id], onDelete: Cascade)
+  timers          Timer[]
+  problemas       Problema[]
+  
+  @@index([competenciaId])
+  @@index([status])
+}
+
+// Modelo de Timer (rastreamento de tempo)
+model Timer {
+  id          String   @id @default(uuid())
+  etapaId     String
+  inicioAt    DateTime
+  fimAt       DateTime?
+  pausadoAt   DateTime?
+  duracaoSeg  Int      @default(0)
+  ativo       Boolean  @default(true)
+  
+  etapa       Etapa    @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+  
+  @@index([etapaId])
+  @@index([ativo])
+}
+
+// Modelo de Problema/Pendência
+model Problema {
+  id              String   @id @default(uuid())
+  etapaId         String?
+  empresaId       String?
+  competenciaId   String?
+  tipo            String   // Tecnico, Processo, Cliente, Sistema, Outro
+  categoria       String?  // Subcategoria específica
+  descricao       String
+  impacto         String   // Baixo, Medio, Alto, Critico
+  status          String   @default("Aberto") // Aberto, Em Analise, Resolvido, Nao Resolvido
+  resolucao       String?
+  criadoEm        DateTime @default(now())
+  resolvidoEm     DateTime?
+  
+  etapa           Etapa?   @relation(fields: [etapaId], references: [id], onDelete: SetNull)
+  
+  @@index([status])
+  @@index([tipo])
+  @@index([criadoEm])
+}
+
+// Modelo de Obrigação Fiscal
+model Obrigacao {
+  id              String   @id @default(uuid())
+  competenciaId   String
+  tipo            String   // DAS, PIS/COFINS, ICMS, DIFAL, IRPJ, CSLL, REINF, EFD, etc
+  esfera          String   // Federal, Estadual, Municipal
+  vencimentoBase  DateTime
+  vencimentoFinal DateTime // Ajustado por feriados
+  status          String   @default("Nao Iniciada") // Nao Iniciada, Em Preparacao, Preparada, Entregue, Comprovada
+  preparadorId    String?
+  entregadorId    String?
+  preparadaEm     DateTime?
+  entregueEm      DateTime?
+  comprovadaEm    DateTime?
+  emRisco         Boolean  @default(false)
+  diasParaVenc    Int?
+  observacoes     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  competencia     Competencia @relation(fields: [competenciaId], references: [id], onDelete: Cascade)
+  preparador      Usuario?    @relation("Preparador", fields: [preparadorId], references: [id], onDelete: SetNull)
+  entregador      Usuario?    @relation("Entregador", fields: [entregadorId], references: [id], onDelete: SetNull)
+  
+  @@index([competenciaId])
+  @@index([status])
+  @@index([vencimentoFinal])
+  @@index([emRisco])
+}
+
+// Modelo de Feriado
+model Feriado {
+  id          String   @id @default(uuid())
+  data        DateTime
+  nome        String
+  tipo        String   // Nacional, Estadual, Municipal
+  uf          String?
+  municipio   String?
+  recorrente  Boolean  @default(true)
+  
+  @@index([data])
+  @@index([tipo])
+}
+
+// Modelo de Log de Ações
+model AcaoLog {
+  id          String   @id @default(uuid())
+  usuarioId   String
+  acao        String   // Login, Criar, Editar, Excluir, Iniciar, Pausar, Concluir
+  entidade    String   // Empresa, Competencia, Etapa, Obrigacao
+  entidadeId  String?
+  detalhes    String?  // JSON com detalhes adicionais
+  timestamp   DateTime @default(now())
+  
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  
+  @@index([usuarioId])
+  @@index([timestamp])
+  @@index([entidade])
+}
+
+// Modelo de Configuração do Sistema
+model Configuracao {
+  id          String   @id @default(uuid())
+  chave       String   @unique
+  valor       String
+  descricao   String?
+  updatedAt   DateTime @updatedAt
+}
