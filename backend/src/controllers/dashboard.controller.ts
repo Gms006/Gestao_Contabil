@@ -109,6 +109,86 @@ router.get('/problemas-tipo', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/obrigacoes/em-risco', async (req: Request, res: Response) => {
+  try {
+    const obrigacoes = await prisma.obrigacao.findMany({
+      where: {
+        emRisco: true,
+        status: { notIn: ['Entregue', 'Comprovada'] },
+      },
+      include: {
+        competencia: {
+          include: { empresa: { select: { razaoSocial: true, regime: true } } },
+        },
+      },
+      orderBy: { vencimentoFinal: 'asc' },
+    });
+
+    res.json(obrigacoes);
+  } catch (error) {
+    console.error('Erro ao buscar obrigações em risco:', error);
+    res.status(500).json({ error: 'Erro ao buscar obrigações em risco' });
+  }
+});
+
+router.get('/obrigacoes/em-cima-prazo', async (req: Request, res: Response) => {
+  try {
+    const obrigacoes = await prisma.obrigacao.findMany({
+      where: {
+        emCimaPrazo: true,
+        status: { notIn: ['Entregue', 'Comprovada'] },
+      },
+      include: {
+        competencia: {
+          include: { empresa: { select: { razaoSocial: true, regime: true } } },
+        },
+      },
+      orderBy: { vencimentoFinal: 'asc' },
+    });
+
+    res.json(obrigacoes);
+  } catch (error) {
+    console.error('Erro ao buscar obrigações em cima do prazo:', error);
+    res.status(500).json({ error: 'Erro ao buscar obrigações em cima do prazo' });
+  }
+});
+
+router.get('/problemas/pareto', async (req: Request, res: Response) => {
+  try {
+    const agregados = await prisma.problema.groupBy({
+      by: ['tipo'],
+      _count: { tipo: true },
+      orderBy: { _count: { tipo: 'desc' } },
+    });
+
+    res.json(agregados);
+  } catch (error) {
+    console.error('Erro ao gerar pareto de problemas:', error);
+    res.status(500).json({ error: 'Erro ao gerar pareto de problemas' });
+  }
+});
+
+router.get('/conversas/ultimas', async (req: Request, res: Response) => {
+  try {
+    const logs = await prisma.mensagemLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    const agrupados: Record<string, any> = {};
+    for (const log of logs) {
+      if (!agrupados[log.phone]) {
+        agrupados[log.phone] = { phone: log.phone, ultimaMensagem: log };
+      }
+    }
+
+    res.json(Object.values(agrupados));
+  } catch (error) {
+    console.error('Erro ao buscar conversas:', error);
+    res.status(500).json({ error: 'Erro ao buscar conversas' });
+  }
+});
+
 // Tempo médio por regime
 router.get('/tempo-medio-regime', async (req: Request, res: Response) => {
   try {

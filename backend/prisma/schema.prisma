@@ -21,6 +21,7 @@ model Empresa {
   municipio       String
   ativo           Boolean  @default(true)
   observacoes     String?
+  periodicidadeIrpjCsll String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
@@ -35,6 +36,7 @@ model Usuario {
   email           String   @unique
   senha           String   // Hash
   papel           String   // Preparador, Entregador, Gestor, Admin
+  telefone        String?
   ativo           Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -100,6 +102,8 @@ model Etapa {
   efetividade     Int?     // 1-5 (avaliação do colaborador)
   observacao      String?  // "Hora desabafo"
   dadosEspecificos String? // JSON com campos específicos da etapa
+  manualFlag      Boolean  @default(false)
+  manualMin       Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
@@ -133,6 +137,7 @@ model Problema {
   etapaId         String?
   empresaId       String?
   competenciaId   String?
+  local           String?
   tipo            String   // Tecnico, Processo, Cliente, Sistema, Outro
   categoria       String?  // Subcategoria específica
   descricao       String
@@ -141,6 +146,8 @@ model Problema {
   resolucao       String?
   criadoEm        DateTime @default(now())
   resolvidoEm     DateTime?
+  tempoEsperaMin  Int?
+  tempoTotalMin   Int?
   
   etapa           Etapa?   @relation(fields: [etapaId], references: [id], onDelete: SetNull)
   
@@ -165,6 +172,7 @@ model Obrigacao {
   comprovadaEm    DateTime?
   emRisco         Boolean  @default(false)
   diasParaVenc    Int?
+  emCimaPrazo     Boolean  @default(false)
   observacoes     String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -217,4 +225,37 @@ model Configuracao {
   valor       String
   descricao   String?
   updatedAt   DateTime @updatedAt
+}
+
+model Conversa {
+  id            String   @id @default(cuid())
+  phone         String
+  usuarioId     String?
+  empresaId     String?
+  competenciaId String?
+  etapaAtual    String
+  estadoJson    String
+  ativa         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([phone])
+}
+
+model MensagemLog {
+  id        String   @id @default(cuid())
+  direction String
+  phone     String
+  messageId String?
+  payload   String
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+  @@index([phone])
+}
+
+model FeriadoNacional {
+  id   String   @id @default(cuid())
+  data DateTime @unique
+  nome String
 }

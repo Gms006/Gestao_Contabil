@@ -7,12 +7,13 @@ const router = Router();
 // Listar obrigações
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { competenciaId, status, emRisco, esfera } = req.query;
+    const { competenciaId, status, emRisco, emCimaPrazo, esfera } = req.query;
 
     const where: any = {};
     if (competenciaId) where.competenciaId = competenciaId;
     if (status) where.status = status;
     if (emRisco !== undefined) where.emRisco = emRisco === 'true';
+    if (emCimaPrazo !== undefined) where.emCimaPrazo = emCimaPrazo === 'true';
     if (esfera) where.esfera = esfera;
 
     const obrigacoes = await prisma.obrigacao.findMany({

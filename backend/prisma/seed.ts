@@ -1,13 +1,12 @@
 import { PrismaClient } from '@prisma/client';
-import * as fs from 'fs';
-import * as path from 'path';
+import feriadosData from '../../data/feriados-nacionais.json';
+import { gerarObrigacoesSN, gerarObrigacoesPresumido } from '../src/services/obrigacoes.service';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log('🌱 Iniciando seed do banco de dados...');
-
-  // Limpar dados existentes
+async function limparBanco() {
+  await prisma.mensagemLog.deleteMany();
+  await prisma.conversa.deleteMany();
   await prisma.acaoLog.deleteMany();
   await prisma.timer.deleteMany();
   await prisma.problema.deleteMany();
@@ -15,71 +14,66 @@ async function main() {
   await prisma.etapa.deleteMany();
   await prisma.competencia.deleteMany();
   await prisma.usuarioEmpresa.deleteMany();
-  await prisma.empresa.deleteMany();
   await prisma.usuario.deleteMany();
+  await prisma.empresa.deleteMany();
+  await prisma.feriadoNacional.deleteMany();
   await prisma.feriado.deleteMany();
   await prisma.configuracao.deleteMany();
+}
 
-  console.log('✅ Dados antigos removidos');
-
-  // Criar usuários
+async function criarUsuarios() {
   const admin = await prisma.usuario.create({
     data: {
       nome: 'Administrador',
-      email: 'admin@contabil.com',
-      senha: 'admin123', // Em produção, usar hash
+      email: 'admin@gestaocontabil.test',
+      senha: 'admin123',
       papel: 'Admin',
       ativo: true,
+      telefone: '+550000000000',
     },
   });
 
-  const preparador1 = await prisma.usuario.create({
+  const preparador = await prisma.usuario.create({
     data: {
-      nome: 'Maria Silva',
-      email: 'maria@contabil.com',
+      nome: 'Paula Preparadora',
+      email: 'preparador@testers.cloud',
       senha: 'senha123',
       papel: 'Preparador',
       ativo: true,
-    },
-  });
-
-  const preparador2 = await prisma.usuario.create({
-    data: {
-      nome: 'João Santos',
-      email: 'joao@contabil.com',
-      senha: 'senha123',
-      papel: 'Preparador',
-      ativo: true,
+      telefone: '+5511999990001',
     },
   });
 
   const entregador = await prisma.usuario.create({
     data: {
-      nome: 'Ana Costa',
-      email: 'ana@contabil.com',
+      nome: 'Edu Entregador',
+      email: 'entregador@testers.cloud',
       senha: 'senha123',
       papel: 'Entregador',
       ativo: true,
+      telefone: '+5511999990002',
     },
   });
 
   const gestor = await prisma.usuario.create({
     data: {
-      nome: 'Carlos Oliveira',
-      email: 'carlos@contabil.com',
+      nome: 'Gi Gestora',
+      email: 'gestor@testers.cloud',
       senha: 'senha123',
       papel: 'Gestor',
       ativo: true,
+      telefone: '+5511999990003',
     },
   });
 
-  console.log('✅ Usuários criados');
+  return { admin, preparador, entregador, gestor };
+}
 
-  // Criar empresas
-  const empresaSN1 = await prisma.empresa.create({
+async function criarEmpresas() {
+  const empresaSN = await prisma.empresa.create({
     data: {
       cnpj: '12.345.678/0001-90',
-      razaoSocial: 'Comércio de Alimentos Ltda',
+      razaoSocial: 'Mercadinho Bom Preço Ltda',
       nomeFantasia: 'Mercadinho Bom Preço',
       regime: 'SN',
       segmento: 'Comercio',
@@ -89,298 +83,284 @@ async function main() {
     },
   });
 
-  const empresaSN2 = await prisma.empresa.create({
+  const empresaLP = await prisma.empresa.create({
     data: {
-      cnpj: '23.456.789/0001-01',
-      razaoSocial: 'Serviços de Consultoria Empresarial Ltda',
-      nomeFantasia: 'Consultoria Excelência',
-      regime: 'SN',
-      segmento: 'Servicos',
-      uf: 'RJ',
-      municipio: 'Rio de Janeiro',
-      ativo: true,
-    },
-  });
-
-  const empresaLP1 = await prisma.empresa.create({
-    data: {
-      cnpj: '34.567.890/0001-12',
-      razaoSocial: 'Indústria de Móveis São José S.A.',
-      nomeFantasia: 'Móveis São José',
+      cnpj: '98.765.432/0001-10',
+      razaoSocial: 'Comercial Presumida S.A.',
+      nomeFantasia: 'Comercial Presumida',
       regime: 'LP',
-      segmento: 'Industria',
+      segmento: 'Comercio',
       uf: 'MG',
       municipio: 'Belo Horizonte',
       ativo: true,
+      periodicidadeIrpjCsll: 'Trimestral',
     },
   });
 
-  const empresaLP2 = await prisma.empresa.create({
-    data: {
-      cnpj: '45.678.901/0001-23',
-      razaoSocial: 'Distribuidora de Produtos Eletrônicos Ltda',
-      nomeFantasia: 'TechDistribuidora',
-      regime: 'LP',
-      segmento: 'Comercio',
-      uf: 'SP',
-      municipio: 'Campinas',
-      ativo: true,
-    },
-  });
+  return { empresaSN, empresaLP };
+}
 
-  const empresaLR1 = await prisma.empresa.create({
-    data: {
-      cnpj: '56.789.012/0001-34',
-      razaoSocial: 'Construtora e Incorporadora Brasil S.A.',
-      nomeFantasia: 'Construtora Brasil',
-      regime: 'LR',
-      segmento: 'Servicos',
-      uf: 'SP',
-      municipio: 'São Paulo',
-      ativo: true,
-    },
-  });
-
-  console.log('✅ Empresas criadas');
-
-  // Associar usuários às empresas
+async function criarRelacoesUsuariosEmpresas(
+  usuarios: Awaited<ReturnType<typeof criarUsuarios>>,
+  empresas: Awaited<ReturnType<typeof criarEmpresas>>
+) {
   await prisma.usuarioEmpresa.createMany({
     data: [
-      { usuarioId: preparador1.id, empresaId: empresaSN1.id, papel: 'Preparador' },
-      { usuarioId: preparador1.id, empresaId: empresaLP1.id, papel: 'Preparador' },
-      { usuarioId: preparador2.id, empresaId: empresaSN2.id, papel: 'Preparador' },
-      { usuarioId: preparador2.id, empresaId: empresaLP2.id, papel: 'Preparador' },
-      { usuarioId: preparador2.id, empresaId: empresaLR1.id, papel: 'Preparador' },
-      { usuarioId: entregador.id, empresaId: empresaSN1.id, papel: 'Entregador' },
-      { usuarioId: entregador.id, empresaId: empresaSN2.id, papel: 'Entregador' },
-      { usuarioId: entregador.id, empresaId: empresaLP1.id, papel: 'Entregador' },
-      { usuarioId: entregador.id, empresaId: empresaLP2.id, papel: 'Entregador' },
-      { usuarioId: entregador.id, empresaId: empresaLR1.id, papel: 'Entregador' },
-      { usuarioId: gestor.id, empresaId: empresaSN1.id, papel: 'Gestor' },
-      { usuarioId: gestor.id, empresaId: empresaSN2.id, papel: 'Gestor' },
-      { usuarioId: gestor.id, empresaId: empresaLP1.id, papel: 'Gestor' },
-      { usuarioId: gestor.id, empresaId: empresaLP2.id, papel: 'Gestor' },
-      { usuarioId: gestor.id, empresaId: empresaLR1.id, papel: 'Gestor' },
+      { usuarioId: usuarios.preparador.id, empresaId: empresas.empresaSN.id, papel: 'Preparador' },
+      { usuarioId: usuarios.preparador.id, empresaId: empresas.empresaLP.id, papel: 'Preparador' },
+      { usuarioId: usuarios.entregador.id, empresaId: empresas.empresaSN.id, papel: 'Entregador' },
+      { usuarioId: usuarios.entregador.id, empresaId: empresas.empresaLP.id, papel: 'Entregador' },
+      { usuarioId: usuarios.gestor.id, empresaId: empresas.empresaSN.id, papel: 'Gestor' },
+      { usuarioId: usuarios.gestor.id, empresaId: empresas.empresaLP.id, papel: 'Gestor' },
     ],
   });
+}
 
-  console.log('✅ Usuários associados às empresas');
+async function criarCompetencias(empresas: Awaited<ReturnType<typeof criarEmpresas>>) {
+  const competencias = await prisma.$transaction([
+    prisma.competencia.create({
+      data: {
+        empresaId: empresas.empresaSN.id,
+        mesAno: '2025-02',
+        status: 'Em Andamento',
+        dataInicio: new Date('2025-03-01'),
+        houveMovimento: true,
+      },
+    }),
+    prisma.competencia.create({
+      data: {
+        empresaId: empresas.empresaSN.id,
+        mesAno: '2025-01',
+        status: 'Concluido',
+        dataInicio: new Date('2025-02-01'),
+        dataConclusao: new Date('2025-02-20'),
+        tempoTotalMin: 210,
+        houveMovimento: true,
+      },
+    }),
+    prisma.competencia.create({
+      data: {
+        empresaId: empresas.empresaLP.id,
+        mesAno: '2025-02',
+        status: 'Em Andamento',
+        dataInicio: new Date('2025-03-01'),
+        houveMovimento: true,
+      },
+    }),
+  ]);
 
-  // Criar competências
-  const competenciaSN1 = await prisma.competencia.create({
-    data: {
-      empresaId: empresaSN1.id,
-      mesAno: '2025-03',
-      status: 'Em Andamento',
-      dataInicio: new Date('2025-04-01'),
-      houveMovimento: true,
-    },
-  });
+  return {
+    competenciaSnAtual: competencias[0],
+    competenciaSnAnterior: competencias[1],
+    competenciaLpAtual: competencias[2],
+  };
+}
 
-  const competenciaSN2 = await prisma.competencia.create({
-    data: {
-      empresaId: empresaSN2.id,
-      mesAno: '2025-03',
-      status: 'Nao Iniciado',
-      houveMovimento: true,
-    },
-  });
-
-  const competenciaLP1 = await prisma.competencia.create({
-    data: {
-      empresaId: empresaLP1.id,
-      mesAno: '2025-03',
-      status: 'Concluido',
-      dataInicio: new Date('2025-04-01'),
-      dataConclusao: new Date('2025-04-15'),
-      tempoTotalMin: 180,
-      houveMovimento: true,
-    },
-  });
-
-  console.log('✅ Competências criadas');
-
-  // Criar etapas para competência SN1
-  const etapas = [
-    {
-      competenciaId: competenciaSN1.id,
-      nome: 'Download de NFs',
-      sistema: 'Jettax',
-      tipo: 'Sistema',
-      ordem: 1,
-      status: 'Concluido',
-      inicioAt: new Date('2025-04-01T09:00:00'),
-      fimAt: new Date('2025-04-01T09:15:00'),
-      duracaoMin: 15,
-      efetividade: 5,
-    },
-    {
-      competenciaId: competenciaSN1.id,
-      nome: 'Importação e Conferência',
-      sistema: 'Dominio',
-      tipo: 'Sistema',
-      ordem: 2,
-      status: 'Concluido',
-      inicioAt: new Date('2025-04-01T09:15:00'),
-      fimAt: new Date('2025-04-01T09:45:00'),
-      duracaoMin: 30,
-      efetividade: 4,
-      observacao: 'Algumas notas com divergência de CFOP, corrigido manualmente',
-    },
-    {
-      competenciaId: competenciaSN1.id,
-      nome: 'Apuração Sittax',
-      sistema: 'Sittax',
-      tipo: 'Sistema',
-      ordem: 3,
-      status: 'Em Andamento',
-      inicioAt: new Date('2025-04-01T09:45:00'),
-      duracaoMin: 0,
-    },
-  ];
-
-  for (const etapa of etapas) {
-    await prisma.etapa.create({ data: etapa });
-  }
-
-  console.log('✅ Etapas criadas');
-
-  // Criar obrigações
-  await prisma.obrigacao.createMany({
+async function criarEtapas(competencias: Awaited<ReturnType<typeof criarCompetencias>>) {
+  await prisma.etapa.createMany({
     data: [
       {
-        competenciaId: competenciaSN1.id,
-        tipo: 'DAS',
-        esfera: 'Federal',
-        vencimentoBase: new Date('2025-04-20'),
-        vencimentoFinal: new Date('2025-04-22'), // Ajustado por feriado
-        status: 'Em Preparacao',
-        preparadorId: preparador1.id,
-        entregadorId: entregador.id,
-        diasParaVenc: 21,
+        competenciaId: competencias.competenciaSnAtual.id,
+        nome: 'Captura Empresa',
+        tipo: 'Manual',
+        ordem: 1,
+        status: 'Concluido',
+        duracaoMin: 10,
+        manualFlag: true,
       },
       {
-        competenciaId: competenciaSN1.id,
-        tipo: 'ICMS',
-        esfera: 'Estadual',
-        vencimentoBase: new Date('2025-04-15'),
-        vencimentoFinal: new Date('2025-04-15'),
-        status: 'Nao Iniciada',
-        preparadorId: preparador1.id,
-        entregadorId: entregador.id,
-        diasParaVenc: 14,
+        competenciaId: competencias.competenciaSnAtual.id,
+        nome: 'Download NFs - Jettax',
+        sistema: 'Jettax',
+        tipo: 'Sistema',
+        ordem: 2,
+        status: 'Em Andamento',
+        duracaoMin: 30,
       },
       {
-        competenciaId: competenciaLP1.id,
-        tipo: 'PIS/COFINS',
-        esfera: 'Federal',
-        vencimentoBase: new Date('2025-04-25'),
-        vencimentoFinal: new Date('2025-04-25'),
-        status: 'Entregue',
-        preparadorId: preparador1.id,
-        entregadorId: entregador.id,
-        preparadaEm: new Date('2025-04-10'),
-        entregueEm: new Date('2025-04-12'),
-        diasParaVenc: 24,
-      },
-      {
-        competenciaId: competenciaLP1.id,
-        tipo: 'EFD Contribuições',
-        esfera: 'Federal',
-        vencimentoBase: new Date('2025-05-10'),
-        vencimentoFinal: new Date('2025-05-12'),
-        status: 'Comprovada',
-        preparadorId: preparador1.id,
-        entregadorId: entregador.id,
-        preparadaEm: new Date('2025-04-15'),
-        entregueEm: new Date('2025-04-15'),
-        comprovadaEm: new Date('2025-04-15'),
-        diasParaVenc: 41,
+        competenciaId: competencias.competenciaLpAtual.id,
+        nome: 'Coleta/Importação',
+        sistema: 'Domínio',
+        tipo: 'Sistema',
+        ordem: 1,
+        status: 'Em Andamento',
+        duracaoMin: 40,
+        manualFlag: false,
       },
     ],
   });
+}
 
-  console.log('✅ Obrigações criadas');
+async function criarObrigacoes(
+  empresas: Awaited<ReturnType<typeof criarEmpresas>>,
+  competencias: Awaited<ReturnType<typeof criarCompetencias>>,
+  usuarios: Awaited<ReturnType<typeof criarUsuarios>>
+) {
+  await gerarObrigacoesSN({
+    empresaId: empresas.empresaSN.id,
+    competenciaId: competencias.competenciaSnAtual.id,
+    mesAno: competencias.competenciaSnAtual.mesAno,
+    houveMovimento: true,
+    houveCompraInterestadual: true,
+    difalTipo: 'comercializacao',
+    justificativas: ['Compra interestadual para revenda'],
+  });
 
-  // Criar problemas
+  await gerarObrigacoesPresumido({
+    empresaId: empresas.empresaLP.id,
+    competenciaId: competencias.competenciaLpAtual.id,
+    mesAno: competencias.competenciaLpAtual.mesAno,
+    pisCofinsDebito: false,
+    pisCofinsMotivo: 'Isenção específica do regime',
+    icmsDevido: true,
+    icmsGuiaGerada: false,
+    icmsJustificativa: 'Guia aguardando aprovação do cliente',
+    difalUso: 'consumo',
+    reinf: true,
+    distribuicaoLucros: { houve: true, valor: 12500 },
+    temFolha: false,
+    faturouMesAnterior: true,
+    periodicidadeIrpjCsll: 'Trimestral',
+  });
+
+  const obrigacoes = await prisma.obrigacao.findMany({
+    where: {
+      competenciaId: { in: [competencias.competenciaSnAtual.id, competencias.competenciaLpAtual.id] },
+    },
+  });
+
+  for (const obrigacao of obrigacoes) {
+    await prisma.obrigacao.update({
+      where: { id: obrigacao.id },
+      data: {
+        preparadorId: usuarios.preparador.id,
+        entregadorId: usuarios.entregador.id,
+      },
+    });
+  }
+}
+
+async function criarProblemas(competencias: Awaited<ReturnType<typeof criarCompetencias>>, empresas: Awaited<ReturnType<typeof criarEmpresas>>) {
   await prisma.problema.createMany({
     data: [
       {
-        empresaId: empresaSN1.id,
-        competenciaId: competenciaSN1.id,
+        empresaId: empresas.empresaSN.id,
+        competenciaId: competencias.competenciaSnAtual.id,
+        local: 'Domínio',
         tipo: 'Sistema',
         categoria: 'Lentidão',
-        descricao: 'Sistema Domínio muito lento hoje, demorou 3x mais que o normal',
+        descricao: 'Domínio instável durante importação de notas.',
         impacto: 'Medio',
         status: 'Aberto',
+        tempoEsperaMin: 45,
       },
       {
-        empresaId: empresaSN1.id,
-        competenciaId: competenciaSN1.id,
-        tipo: 'Cliente',
+        empresaId: empresas.empresaLP.id,
+        competenciaId: competencias.competenciaLpAtual.id,
+        local: 'Cliente',
+        tipo: 'Processo',
         categoria: 'Documentação',
-        descricao: 'Cliente não enviou XML de 5 notas fiscais, precisei solicitar novamente',
+        descricao: 'Cliente atrasou envio da guia de ICMS assinada.',
         impacto: 'Alto',
         status: 'Em Analise',
+        tempoTotalMin: 120,
       },
     ],
   });
+}
 
-  console.log('✅ Problemas criados');
+async function criarFeriados() {
+  const anoBase = new Date().getFullYear();
+  const feriadosFixos = (feriadosData.feriadosNacionais || [])
+    .filter((feriado) => feriado.data && feriado.data !== 'variavel')
+    .map((feriado) => {
+      const [mes, dia] = (feriado.data as string).split('-');
+      return {
+        data: new Date(Date.UTC(anoBase, Number(mes) - 1, Number(dia))),
+        nome: feriado.nome as string,
+      };
+    });
 
-  // Criar feriados nacionais
-  const feriadosNacionais = [
-    { data: new Date('2025-01-01'), nome: 'Confraternização Universal', tipo: 'Nacional', recorrente: true },
-    { data: new Date('2025-04-21'), nome: 'Tiradentes', tipo: 'Nacional', recorrente: true },
-    { data: new Date('2025-05-01'), nome: 'Dia do Trabalho', tipo: 'Nacional', recorrente: true },
-    { data: new Date('2025-09-07'), nome: 'Independência do Brasil', tipo: 'Nacional', recorrente: true },
-    { data: new Date('2025-10-12'), nome: 'Nossa Senhora Aparecida', tipo: 'Nacional', recorrente: true },
-    { data: new Date('2025-11-02'), nome: 'Finados', tipo: 'Nacional', recorrente: true },
-    { data: new Date('2025-11-15'), nome: 'Proclamação da República', tipo: 'Nacional', recorrente: true },
-    { data: new Date('2025-11-20'), nome: 'Consciência Negra', tipo: 'Nacional', recorrente: true },
-    { data: new Date('2025-12-25'), nome: 'Natal', tipo: 'Nacional', recorrente: true },
-  ];
+  if (feriadosFixos.length) {
+    await prisma.feriadoNacional.createMany({ data: feriadosFixos });
+  }
+}
 
-  await prisma.feriado.createMany({ data: feriadosNacionais });
-
-  // Feriados estaduais
-  const feriadosEstaduais = [
-    { data: new Date('2025-07-09'), nome: 'Revolução Constitucionalista', tipo: 'Estadual', uf: 'SP', recorrente: true },
-    { data: new Date('2025-04-23'), nome: 'Dia de São Jorge', tipo: 'Estadual', uf: 'RJ', recorrente: true },
-  ];
-
-  await prisma.feriado.createMany({ data: feriadosEstaduais });
-
-  console.log('✅ Feriados criados');
-
-  // Criar configurações
+async function criarConfiguracoes() {
   await prisma.configuracao.createMany({
     data: [
-      { chave: 'NOME_ESCRITORIO', valor: 'Escritório de Contabilidade Exemplo', descricao: 'Nome do escritório' },
-      { chave: 'SUBLIMITE_SN', valor: '3600000', descricao: 'Sublimite Simples Nacional em centavos (R$ 3.6mi)' },
-      { chave: 'DIAS_ALERTA_VENCIMENTO', valor: '7,3,1', descricao: 'Dias antes do vencimento para alertas' },
-      { chave: 'HORARIO_NOTIFICACAO', valor: '09:00', descricao: 'Horário para envio de notificações diárias' },
-      { chave: 'BACKUP_AUTOMATICO', valor: 'true', descricao: 'Ativar backup automático' },
+      { chave: 'APP_NOME', valor: 'Gestão Contábil Bot', descricao: 'Nome da aplicação' },
+      { chave: 'LEMBRETES_WHATSAPP', valor: 'true', descricao: 'Habilita lembretes via WhatsApp' },
     ],
   });
+}
 
-  console.log('✅ Configurações criadas');
+async function criarConversasExemplo(
+  usuarios: Awaited<ReturnType<typeof criarUsuarios>>,
+  empresas: Awaited<ReturnType<typeof criarEmpresas>>,
+  competencias: Awaited<ReturnType<typeof criarCompetencias>>
+) {
+  const estadoSn = {
+    stage: 'SN_CONCLUSAO',
+    fluxo: 'SN',
+    data: {
+      sn: {
+        empresaId: empresas.empresaSN.id,
+        competenciaId: competencias.competenciaSnAtual.id,
+        mesAno: competencias.competenciaSnAtual.mesAno,
+        houveMovimento: true,
+        houveDifal: true,
+        difalTipo: 'comercializacao',
+      },
+    },
+    history: ['CAPTURAR_EMPRESA', 'SN_CAPTURAR_COMPETENCIA', 'SN_MOVIMENTO'],
+    pending: null,
+  };
 
-  console.log('🎉 Seed concluído com sucesso!');
-  console.log('\n📊 Resumo:');
-  console.log(`   - ${await prisma.usuario.count()} usuários`);
-  console.log(`   - ${await prisma.empresa.count()} empresas`);
-  console.log(`   - ${await prisma.competencia.count()} competências`);
-  console.log(`   - ${await prisma.etapa.count()} etapas`);
-  console.log(`   - ${await prisma.obrigacao.count()} obrigações`);
-  console.log(`   - ${await prisma.problema.count()} problemas`);
-  console.log(`   - ${await prisma.feriado.count()} feriados`);
-  console.log(`   - ${await prisma.configuracao.count()} configurações`);
+  await prisma.conversa.create({
+    data: {
+      phone: usuarios.preparador.telefone!,
+      empresaId: empresas.empresaSN.id,
+      competenciaId: competencias.competenciaSnAtual.id,
+      etapaAtual: 'SN_CONCLUSAO',
+      estadoJson: JSON.stringify(estadoSn),
+    },
+  });
+}
+
+async function resumo() {
+  console.log('\n📊 Resumo do seed:');
+  console.log(`   - Usuários: ${await prisma.usuario.count()}`);
+  console.log(`   - Empresas: ${await prisma.empresa.count()}`);
+  console.log(`   - Competências: ${await prisma.competencia.count()}`);
+  console.log(`   - Obrigações: ${await prisma.obrigacao.count()}`);
+  console.log(`   - Problemas: ${await prisma.problema.count()}`);
+  console.log(`   - Conversas: ${await prisma.conversa.count()}`);
+  console.log(`   - Feriados nacionais: ${await prisma.feriadoNacional.count()}`);
+}
+
+async function main() {
+  console.log('🌱 Iniciando seed do banco...');
+  await limparBanco();
+
+  const usuarios = await criarUsuarios();
+  const empresas = await criarEmpresas();
+  await criarRelacoesUsuariosEmpresas(usuarios, empresas);
+  const competencias = await criarCompetencias(empresas);
+  await criarEtapas(competencias);
+  await criarObrigacoes(empresas, competencias, usuarios);
+  await criarProblemas(competencias, empresas);
+  await criarFeriados();
+  await criarConfiguracoes();
+  await criarConversasExemplo(usuarios, empresas, competencias);
+
+  await resumo();
+  console.log('✅ Seed concluído.');
 }
 
 main()
-  .catch((e) => {
-    console.error('❌ Erro no seed:', e);
+  .catch((error) => {
+    console.error('❌ Erro no seed:', error);
     process.exit(1);
   })
   .finally(async () => {

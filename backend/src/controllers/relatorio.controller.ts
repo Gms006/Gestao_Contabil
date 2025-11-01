@@ -380,4 +380,69 @@ router.get('/consolidado', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/export', async (req: Request, res: Response) => {
+  try {
+    const { empresaId, mesAno, format = 'json' } = req.query;
+
+    const competencias = await prisma.competencia.findMany({
+      where: {
+        ...(empresaId ? { empresaId: String(empresaId) } : {}),
+        ...(mesAno ? { mesAno: String(mesAno) } : {}),
+      },
+      include: {
+        empresa: { select: { razaoSocial: true, cnpj: true, regime: true } },
+        obrigacoes: true,
+      },
+      orderBy: { mesAno: 'desc' },
+    });
+
+    const dataset = competencias.map((competencia) => ({
+      empresa: competencia.empresa.razaoSocial,
+      cnpj: competencia.empresa.cnpj,
+      regime: competencia.empresa.regime,
+      mesAno: competencia.mesAno,
+      status: competencia.status,
+      obrigacoes: competencia.obrigacoes.map((obrigacao) => ({
+        tipo: obrigacao.tipo,
+        esfera: obrigacao.esfera,
+        vencimento: obrigacao.vencimentoFinal,
+        status: obrigacao.status,
+        emRisco: obrigacao.emRisco,
+        emCimaPrazo: obrigacao.emCimaPrazo,
+      })),
+    }));
+
+    if (String(format).toLowerCase() === 'csv') {
+      const rows: string[] = ['empresa,cnpj,regime,mesAno,status,tipo,esfera,vencimento,statusObrigacao,emRisco,emCimaPrazo'];
+      dataset.forEach((item) => {
+        item.obrigacoes.forEach((obrigacao) => {
+          rows.push(
+            [
+              item.empresa,
+              item.cnpj,
+              item.regime,
+              item.mesAno,
+              item.status,
+              obrigacao.tipo,
+              obrigacao.esfera,
+              new Date(obrigacao.vencimento).toISOString(),
+              obrigacao.status,
+              obrigacao.emRisco,
+              obrigacao.emCimaPrazo,
+            ].join(',')
+          );
+        });
+      });
+      res.header('Content-Type', 'text/csv');
+      res.send(rows.join('\n'));
+      return;
+    }
+
+    res.json(dataset);
+  } catch (error) {
+    console.error('Erro ao exportar dados:', error);
+    res.status(500).json({ error: 'Erro ao exportar dados' });
+  }
+});
+
 export default router;
