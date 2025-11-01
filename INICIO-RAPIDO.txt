@@ -1,131 +1,38 @@
-================================================================================
-  SISTEMA DE GESTÃO DE PROCEDIMENTOS CONTÁBEIS
-  Início Rápido - Windows
-================================================================================
+==============================================
+ BOT FISCAL - INÍCIO RÁPIDO
+==============================================
 
-📋 REQUISITOS:
-   - Windows 10 ou superior
-   - Node.js 18+ (baixe em: https://nodejs.org/)
-   - 500 MB de espaço livre em disco
+1. Instale as dependências
+   cd backend
+   npm install
 
-================================================================================
+2. Copie e ajuste as variáveis de ambiente
+   cp .env.example .env
+   # Preencha WHATSAPP_TOKEN, PHONE_NUMBER_ID, VERIFY_TOKEN, APP_BASE_URL
 
-🚀 INSTALAÇÃO RÁPIDA (3 passos):
+3. Aplique as migrações e seeds
+   npx prisma migrate dev --name whatsapp-bot
+   npx ts-node prisma/seed.ts
 
-1. Extraia este arquivo ZIP em:
-   C:\GestaoContabil\
+4. Configure o webhook no painel da Meta
+   Callback URL: http://localhost:3000/webhook
+   Verify token: (mesmo valor configurado no .env)
 
-2. Execute o instalador:
-   C:\GestaoContabil\gestao-contabil\scripts\instalar.bat
+5. Adicione os testers e envie a primeira mensagem pelo número de teste.
 
-3. Inicie o sistema:
-   C:\GestaoContabil\gestao-contabil\scripts\iniciar.bat
+6. Inicie o servidor
+   npm run dev
 
-4. Abra o navegador e acesse:
-   http://localhost:3000
+7. Acompanhe os testes
+   - Dashboard: http://localhost:3000/dashboard
+   - Health check: http://localhost:3000/api/health
 
-================================================================================
+Comandos úteis no WhatsApp:
+  novo | nova empresa | pendencias | resumo | problema | observacao | desabafo | pular | retomar | encerrar
 
-🔐 LOGIN PADRÃO:
+Fluxos disponíveis:
+  - Simples Nacional (comércio com movimento)
+  - Lucro Presumido (comércio com movimento)
 
-   Email: admin@contabil.com
-   Senha: admin123
-
-   Outros usuários disponíveis:
-   - maria@contabil.com (Preparador)
-   - joao@contabil.com (Preparador)
-   - ana@contabil.com (Entregador)
-   - carlos@contabil.com (Gestor)
-   
-   Todas as senhas: senha123
-
-================================================================================
-
-📁 ESTRUTURA:
-
-   C:\GestaoContabil\gestao-contabil\
-   ├── backend\          → Servidor e banco de dados
-   ├── frontend\         → Interface do usuário
-   ├── data\             → Banco de dados SQLite
-   ├── scripts\          → Scripts de instalação e backup
-   └── docs\             → Documentação completa
-
-================================================================================
-
-🛠️ COMANDOS ÚTEIS:
-
-   Iniciar sistema:
-   → Clique em: scripts\iniciar.bat
-
-   Fazer backup:
-   → Clique em: scripts\backup.bat
-
-   Visualizar banco de dados:
-   → Abra cmd na pasta backend
-   → Execute: npm run prisma:studio
-
-================================================================================
-
-📚 DOCUMENTAÇÃO COMPLETA:
-
-   - README.md                → Visão geral do sistema
-   - docs\INSTALACAO.md       → Manual de instalação detalhado
-   - docs\MANUAL-USO.md       → Manual do usuário
-   - docs\FLUXOS.md           → Documentação dos fluxos
-
-================================================================================
-
-🐛 PROBLEMAS COMUNS:
-
-   "Node.js não encontrado"
-   → Instale Node.js de: https://nodejs.org/
-   → Reinicie o computador
-
-   "Porta 3000 já em uso"
-   → Altere a porta no arquivo: backend\.env
-   → Mude PORT=3000 para PORT=3001
-
-   "Erro ao instalar"
-   → Verifique sua conexão com internet
-   → Execute como Administrador
-
-================================================================================
-
-✅ FUNCIONALIDADES PRINCIPAIS:
-
-   ✓ Gestão de Empresas (SN, LP, LR)
-   ✓ Controle de Competências
-   ✓ Timer automático por etapa
-   ✓ "Hora Desabafo" - registro de problemas
-   ✓ Sistema de Pular/Retomar
-   ✓ Geração automática de obrigações
-   ✓ Alertas de vencimento
-   ✓ Relatórios gerenciais
-   ✓ Dashboard analítico
-   ✓ 100% Offline
-
-================================================================================
-
-📞 SUPORTE:
-
-   Logs do sistema:
-   → C:\GestaoContabil\gestao-contabil\data\logs\app.log
-
-   Status do sistema:
-   → http://localhost:3000/api/health
-
-   Backup do banco:
-   → C:\GestaoContabil\gestao-contabil\data\gestao-contabil.db
-
-================================================================================
-
-🎉 PRONTO!
-
-Agora você pode começar a usar o sistema para gerenciar seus procedimentos
-contábeis de forma eficiente e organizada.
-
-Boa sorte! 🚀
-
-================================================================================
-Versão: 1.0.0 | Data: Novembro 2025 | Status: Pronto para Produção
-================================================================================
+Lembretes automáticos D-7/D-3/D-1 são enviados ao preparador cadastrado.
+==============================================

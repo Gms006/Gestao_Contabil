@@ -2,6 +2,10 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
+import prisma from './config/database';
+import env from './config/env';
+import whatsappService from './services/whatsapp.service';
+import { getOrStartConversa, advance } from './flows/engine';
 
 // Importar rotas
 import empresaRoutes from './controllers/empresa.controller';
@@ -36,6 +40,93 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/problemas', problemaRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/relatorios', relatorioRoutes);
+
+// Webhook WhatsApp Cloud API
+app.get('/webhook', (req: Request, res: Response) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === env.verifyToken) {
+    return res.status(200).send(challenge);
+  }
+
+  return res.sendStatus(403);
+});
+
+app.post('/webhook', async (req: Request, res: Response) => {
+  const body = req.body;
+
+  if (body.object !== 'whatsapp_business_account') {
+    return res.sendStatus(200);
+  }
+
+  try {
+    const entries = body.entry || [];
+    for (const entry of entries) {
+      const changes = entry.changes || [];
+      for (const change of changes) {
+        const value = change.value || {};
+
+        if (value.messages) {
+          for (const message of value.messages) {
+            const messageId = message.id;
+            const from = message.from;
+
+            if (!from || !messageId) {
+              continue;
+            }
+
+            const existing = await prisma.mensagemLog.findFirst({
+              where: { messageId, direction: 'inbound' },
+            });
+            if (existing) {
+              continue;
+            }
+
+            await prisma.mensagemLog.create({
+              data: {
+                direction: 'inbound',
+                phone: from,
+                messageId,
+                payload: JSON.stringify(message),
+              },
+            });
+
+            if (message.type !== 'text') {
+              continue;
+            }
+
+            const text = message.text?.body || '';
+            const conversa = await getOrStartConversa(from);
+            const reply = await advance(conversa, text);
+
+            for (const msg of reply.messages) {
+              await whatsappService.sendText(from, msg);
+            }
+          }
+        }
+
+        if (value.statuses) {
+          for (const status of value.statuses) {
+            await prisma.mensagemLog.create({
+              data: {
+                direction: 'status',
+                phone: status.recipient_id,
+                messageId: status.id,
+                payload: JSON.stringify(status),
+              },
+            });
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Erro no webhook do WhatsApp:', error);
+  }
+
+  res.sendStatus(200);
+});
 
 // Rota de health check
 app.get('/api/health', (req: Request, res: Response) => {

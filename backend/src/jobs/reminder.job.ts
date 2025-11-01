@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import prisma from '../config/database';
-import { DIAS_ALERTA } from '../config/constants';
+import { DIAS_ALERTA, STATUS_OBRIGACAO } from '../config/constants';
+import whatsappService from '../services/whatsapp.service';
 
 // Função para verificar obrigações próximas do vencimento
 async function verificarObrigacoesVencimento() {
@@ -25,10 +26,10 @@ async function verificarObrigacoesVencimento() {
           },
         },
         preparador: {
-          select: { nome: true, email: true },
+          select: { nome: true, email: true, telefone: true },
         },
         entregador: {
-          select: { nome: true, email: true },
+          select: { nome: true, email: true, telefone: true },
         },
       },
     });
@@ -41,24 +42,33 @@ async function verificarObrigacoesVencimento() {
       );
 
       // Atualizar dias para vencimento
+      const emRisco = diasParaVenc <= 3 &&
+        !['Preparada', 'Entregue', 'Comprovada'].includes(obrigacao.status);
+      const emCimaPrazo = diasParaVenc < 0;
+
       await prisma.obrigacao.update({
         where: { id: obrigacao.id },
         data: {
           diasParaVenc,
-          emRisco: diasParaVenc <= 3,
+          emRisco,
+          emCimaPrazo,
         },
       });
 
       // Gerar alertas para dias específicos
       if (DIAS_ALERTA.includes(diasParaVenc)) {
-        console.log(
-          `⚠️  ALERTA: ${obrigacao.tipo} - ${obrigacao.competencia.empresa.razaoSocial} vence em ${diasParaVenc} dias`
-        );
-
-        // Aqui você pode implementar notificações por email, SMS, etc.
-        // Por enquanto, apenas log no console
-
-        alertasGerados++;
+        const telefone = obrigacao.preparador?.telefone;
+        if (telefone) {
+          const mensagem =
+            `Lembrete: ${obrigacao.tipo} da ${obrigacao.competencia.empresa.razaoSocial} ` +
+            `vence em ${diasParaVenc} dia(s). Status atual: ${obrigacao.status}.`;
+          try {
+            await whatsappService.sendText(telefone, mensagem, `reminder-${obrigacao.id}-${diasParaVenc}`);
+            alertasGerados++;
+          } catch (error) {
+            console.error('Erro ao enviar lembrete WhatsApp:', error);
+          }
+        }
       }
 
       // Alerta crítico para vencimentos atrasados
@@ -66,7 +76,41 @@ async function verificarObrigacoesVencimento() {
         console.log(
           `🚨 CRÍTICO: ${obrigacao.tipo} - ${obrigacao.competencia.empresa.razaoSocial} VENCIDA há ${Math.abs(diasParaVenc)} dias!`
         );
+        const telefone = obrigacao.preparador?.telefone;
+        if (telefone) {
+          try {
+            await whatsappService.sendText(
+              telefone,
+              `Atenção! ${obrigacao.tipo} está vencida há ${Math.abs(diasParaVenc)} dia(s).`,
+              `overdue-${obrigacao.id}`
+            );
+          } catch (error) {
+            console.error('Erro ao enviar alerta crítico:', error);
+          }
+        }
         alertasGerados++;
+      }
+
+      if (
+        obrigacao.status === STATUS_OBRIGACAO.PREPARADA &&
+        obrigacao.entregador?.telefone &&
+        !(obrigacao.observacoes || '').includes('[notificado_entregador]')
+      ) {
+        try {
+          await whatsappService.sendText(
+            obrigacao.entregador.telefone,
+            `Obrigação ${obrigacao.tipo} pronta para entrega. Vencimento: ${obrigacao.vencimentoFinal.toLocaleDateString('pt-BR')}.`,
+            `ready-${obrigacao.id}`
+          );
+          await prisma.obrigacao.update({
+            where: { id: obrigacao.id },
+            data: {
+              observacoes: `${obrigacao.observacoes || ''} [notificado_entregador]`.trim(),
+            },
+          });
+        } catch (error) {
+          console.error('Erro ao notificar entregador:', error);
+        }
       }
     }
 
